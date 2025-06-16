@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// ResultSection.js
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   Typography,
@@ -8,9 +9,26 @@ import {
   Box,
   Fade,
 } from '@mui/material';
-import { marked } from 'marked';
 import hljs from 'highlight.js';
+import MarkdownIt from 'markdown-it';
 import { splitAnalysisIntoSections } from '../utils/helpers';
+
+import 'highlight.js/styles/github.css';
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  highlight: function (str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return `<pre class="hljs"><code>${
+          hljs.highlight(str, { language: lang }).value
+        }</code></pre>`;
+      } catch (__) {}
+    }
+    return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`;
+  },
+});
 
 function ResultSection({ data, onBackClick }) {
   const [tab, setTab] = useState(0);
@@ -21,70 +39,146 @@ function ResultSection({ data, onBackClick }) {
     });
   }, [tab]);
 
-  const highlightRisks = (html) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+  const rawContent = data.analysis || '';
+  const htmlContent = md.render(rawContent);
+  const sections = splitAnalysisIntoSections(htmlContent);
 
-    doc.querySelectorAll('div, p, li').forEach((el) => {
+  const enhanceContentWithStyles = (html) => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+
+    // Style risk levels
+    container.querySelectorAll('li, p').forEach((el) => {
       const text = el.textContent.toLowerCase();
-
-      if (text.includes('высокий риск')) {
-        el.classList.add('risk-highlight', 'high');
-      } else if (text.includes('средний риск')) {
-        el.classList.add('risk-highlight', 'medium');
-      } else if (text.includes('низкий риск')) {
-        el.classList.add('risk-highlight', 'low');
+      if (text.includes('высок') || text.includes('high')) {
+        el.classList.add('risk-high');
+      } else if (text.includes('средн') || text.includes('medium')) {
+        el.classList.add('risk-medium');
+      } else if (text.includes('низк') || text.includes('low')) {
+        el.classList.add('risk-low');
       }
     });
 
-    return doc.body.innerHTML;
+    // Add icons or badges for legal references
+    container.querySelectorAll('li').forEach((el) => {
+      if (
+        el.textContent.includes('Статья') ||
+        el.textContent.includes('Закон')
+      ) {
+        el.classList.add('legal-reference');
+      }
+    });
+
+    return container.innerHTML;
   };
 
-  const rawHtml = data.analysis ? marked.parse(data.analysis) : '';
-  const sections = splitAnalysisIntoSections(rawHtml);
-
   const tabs = [
-    { label: 'Полный анализ', content: rawHtml },
+    {
+      label: 'Полный анализ',
+      content: enhanceContentWithStyles(htmlContent),
+      description: 'Полный анализ',
+    },
     {
       label: 'Риски',
-      content: highlightRisks(sections.risks || '<p>Риски не выявлены.</p>'),
+      content: sections.risks
+        ? enhanceContentWithStyles(sections.risks)
+        : '<p class="no-risks">Правовые риски не выявлены.</p>',
+      description: 'Выявленные правовые риски и их уровень опасности',
     },
     {
       label: 'Рекомендации',
-      content: sections.recommendations || '<p>Рекомендации отсутствуют.</p>',
+      content: sections.recommendations
+        ? enhanceContentWithStyles(sections.recommendations)
+        : '<p class="no-recommendations">Рекомендации отсутствуют.</p>',
+      description: 'Предложения по устранению выявленных проблем',
     },
     {
       label: 'Сводка',
-      content: sections.summary || '<p>Нет данных для сводки.</p>',
+      content: sections.summary
+        ? enhanceContentWithStyles(sections.summary)
+        : '<p class="no-summary">Нет данных для сводки.</p>',
+      description: 'Краткое резюме основных проблем и рекомендаций',
     },
   ];
 
   return (
-    <Container sx={{ mt: 4 }}>
-      <Typography variant="h5">Результаты анализа</Typography>
-      <Typography variant="subtitle1" gutterBottom>
-        Тип документа: {data.document_type || 'Неизвестно'}
+    <Container sx={{ mt: 4, mb: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Результаты юридического анализа
       </Typography>
-      <Button variant="outlined" onClick={onBackClick} sx={{ mb: 2 }}>
-        ← Назад к загрузке
-      </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+        <Box>
+          <Typography variant="subtitle1" gutterBottom>
+            <strong>Тип документа:</strong> {data.document_type || 'Неизвестно'}
+          </Typography>
+          <Typography variant="subtitle2" color="text.secondary">
+            {new Date().toLocaleDateString()}
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          onClick={onBackClick}
+          sx={{ height: 'fit-content' }}
+        >
+          ← Назад к загрузке
+        </Button>
+      </Box>
 
-      <Tabs value={tab} onChange={(e, newTab) => setTab(newTab)} centered>
+      <Tabs
+        value={tab}
+        onChange={(e, newTab) => setTab(newTab)}
+        variant="fullWidth"
+        sx={{ mb: 2 }}
+      >
         {tabs.map((t, i) => (
-          <Tab key={i} label={t.label} />
+          <Tab
+            key={i}
+            label={
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <span>{t.label}</span>
+                <Typography variant="caption" color="text.secondary">
+                  {t.description}
+                </Typography>
+              </Box>
+            }
+          />
         ))}
       </Tabs>
 
       <Fade in key={tab}>
         <Box
           sx={{
-            mt: 3,
-            border: '1px solid #ccc',
+            mt: 1,
+            p: 3,
+            backgroundColor: '#fff',
             borderRadius: 2,
-            p: 2,
-            backgroundColor: '#f9f9f9',
-            overflowX: 'auto',
+            boxShadow: 1,
+            minHeight: '400px',
+            '& .risk-high': {
+              borderLeft: '4px solid #ff1744',
+              paddingLeft: '12px',
+              backgroundColor: '#ffebee',
+            },
+            '& .risk-medium': {
+              borderLeft: '4px solid #ff9100',
+              paddingLeft: '12px',
+              backgroundColor: '#fff3e0',
+            },
+            '& .risk-low': {
+              borderLeft: '4px solid #00c853',
+              paddingLeft: '12px',
+              backgroundColor: '#e8f5e9',
+            },
+            '& .legal-reference': {
+              fontWeight: '500',
+              color: '#1565c0',
+            },
+            '& .no-risks, & .no-recommendations, & .no-summary': {
+              fontStyle: 'italic',
+              color: '#757575',
+            },
           }}
+          className="analysis-container"
           dangerouslySetInnerHTML={{ __html: tabs[tab].content }}
         />
       </Fade>

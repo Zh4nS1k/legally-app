@@ -1,3 +1,4 @@
+// helpers.js
 export function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -18,7 +19,7 @@ export function splitAnalysisIntoSections(htmlContent) {
   const doc = parser.parseFromString(htmlContent, 'text/html');
 
   // Get all heading elements
-  const headings = doc.querySelectorAll('h3, h4');
+  const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
   let currentSection = null;
 
   headings.forEach((heading) => {
@@ -28,33 +29,54 @@ export function splitAnalysisIntoSections(htmlContent) {
       text.includes('правовые риски') ||
       text.includes('неясные формулировки') ||
       text.includes('возможные нарушения') ||
-      text.includes('риски')
+      text.includes('риски') ||
+      text.includes('проблемные места') ||
+      text.includes('несоответствия')
     ) {
       currentSection = 'risks';
-    } else if (text.includes('рекомендации')) {
+    } else if (
+      text.includes('рекомендации') ||
+      text.includes('улучшения') ||
+      text.includes('исправления')
+    ) {
       currentSection = 'recommendations';
     } else if (
       text.includes('заключение') ||
       text.includes('сводка') ||
       text.includes('итог') ||
-      text.includes('вывод')
+      text.includes('вывод') ||
+      text.includes('резюме')
     ) {
       currentSection = 'summary';
     }
 
     if (currentSection) {
-      // Get content until next heading
+      // Get content until next heading of same or higher level
       let content = '';
       let nextElement = heading.nextElementSibling;
+      const headingLevel = parseInt(heading.tagName.substring(1));
 
-      while (nextElement && !['H3', 'H4'].includes(nextElement.tagName)) {
+      while (nextElement) {
+        const nextHeadingLevel = nextElement.tagName.match(/^H(\d)$/);
+        if (nextHeadingLevel && parseInt(nextHeadingLevel[1]) <= headingLevel) {
+          break;
+        }
         content += nextElement.outerHTML;
         nextElement = nextElement.nextElementSibling;
       }
 
+      if (sections[currentSection]) {
+        sections[currentSection] +=
+          '<hr style="margin: 20px 0; border-color: #eee;"/>';
+      }
       sections[currentSection] += heading.outerHTML + content;
     }
   });
+
+  // If no sections found, use the whole content for full analysis
+  if (!sections.risks && !sections.recommendations && !sections.summary) {
+    sections.risks = htmlContent;
+  }
 
   return sections;
 }
