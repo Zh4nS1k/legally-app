@@ -1,4 +1,14 @@
 import React, { useRef } from 'react';
+import {
+  Container,
+  Typography,
+  Button,
+  Alert,
+  Fade,
+  Stack,
+} from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import HistoryIcon from '@mui/icons-material/History';
 import { formatFileSize } from '../utils/helpers';
 
 function UploadSection({ onFileUpload, fileInfo, error, onHistoryClick }) {
@@ -6,61 +16,68 @@ function UploadSection({ onFileUpload, fileInfo, error, onHistoryClick }) {
 
   const handleFileChange = (e) => {
     if (e.target.files.length > 0) {
-      const file = e.target.files[0];
-      onFileUpload(file);
+      onFileUpload(e.target.files[0]);
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current.click();
-  };
-
   return (
-    <section className="upload-section">
-      <h2>Проверить документ</h2>
-      <p>
-        Загрузите договор или другой юридический документ для анализа на
-        соответствие законодательству РК
-      </p>
+    <Fade in timeout={600}>
+      <Container sx={{ mt: 6 }}>
+        <Typography variant="h5" gutterBottom>
+          Проверить документ
+        </Typography>
+        <Typography variant="body1" gutterBottom>
+          Загрузите договор или другой юридический документ для анализа
+        </Typography>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: '10px',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".pdf"
-          style={{ display: 'none' }}
-        />
-        <button className="upload-btn" onClick={handleUploadClick}>
-          Загрузить документ
-        </button>
-        <button className="upload-btn" onClick={onHistoryClick}>
-          📜 История анализов
-        </button>
-      </div>
+        <Stack
+          direction="row"
+          spacing={2}
+          justifyContent="center"
+          sx={{ mt: 2 }}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".pdf"
+            hidden
+          />
+          <Button
+            variant="contained"
+            startIcon={<UploadFileIcon />}
+            onClick={() => fileInputRef.current.click()}
+          >
+            Загрузить
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={onHistoryClick}
+          >
+            История
+          </Button>
+        </Stack>
 
-      {fileInfo && (
-        <div className="file-info">
-          <strong>Выбран файл:</strong> {fileInfo.name} (
-          {formatFileSize(fileInfo.size)})
-        </div>
-      )}
+        {fileInfo && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Выбран файл: {fileInfo.name} ({formatFileSize(fileInfo.size)})
+          </Alert>
+        )}
 
-      {!fileInfo && !error && (
-        <div className="empty-state">
-          Пожалуйста, загрузите документ для анализа.
-        </div>
-      )}
+        {!fileInfo && !error && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Пожалуйста, загрузите документ для анализа.
+          </Alert>
+        )}
 
-      {error && <div className="error-state">{error}</div>}
-    </section>
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        )}
+      </Container>
+    </Fade>
   );
 }
 

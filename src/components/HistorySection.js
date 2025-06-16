@@ -1,7 +1,15 @@
 import React from 'react';
+import {
+  Container,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Slide,
+} from '@mui/material';
 
 function HistorySection({ onBackClick }) {
-  // Mock history data
   const historyItems = [
     {
       id: 1,
@@ -20,34 +28,32 @@ function HistorySection({ onBackClick }) {
   ];
 
   return (
-    <section className="result-section">
-      <h2>История анализов</h2>
-
-      <button
-        className="upload-btn"
-        onClick={onBackClick}
-        style={{ marginBottom: '20px' }}
-      >
+    <Container sx={{ mt: 4 }}>
+      <Typography variant="h5" gutterBottom>
+        История анализов
+      </Typography>
+      <Button variant="outlined" onClick={onBackClick} sx={{ mb: 2 }}>
         ← Назад к загрузке
-      </button>
+      </Button>
 
-      <div className="analysis-container">
-        {historyItems.length > 0 ? (
-          historyItems.map((item) => (
-            <div key={item.id} className="history-card">
-              <h4>{item.title}</h4>
-              <p>{item.description}</p>
-              <div className="history-meta">
-                <span>{item.date}</span>
-                <span>{item.status}</span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p>История анализов пуста</p>
-        )}
-      </div>
-    </section>
+      <Grid container spacing={2}>
+        {historyItems.map((item) => (
+          <Grid item xs={12} sm={6} key={item.id}>
+            <Slide in direction="up">
+              <Card elevation={3}>
+                <CardContent>
+                  <Typography variant="h6">{item.title}</Typography>
+                  <Typography variant="body2">{item.description}</Typography>
+                  <Typography variant="caption" display="block" mt={1}>
+                    {item.date} | {item.status}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Slide>
+          </Grid>
+        ))}
+      </Grid>
+    </Container>
   );
 }
 
