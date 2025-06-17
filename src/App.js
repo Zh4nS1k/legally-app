@@ -1,86 +1,212 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+} from 'react-router-dom';
 import Header from './components/Header';
 import UploadSection from './components/UploadSection';
 import LoadingSection from './components/LoadingSection';
 import ResultSection from './components/ResultSection';
 import HistorySection from './components/HistorySection';
 import Footer from './components/Footer';
+import AuthPage from './components/AuthPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import './styles/index.css';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('upload');
-  const [isLoading, setIsLoading] = useState(false);
-  const [fileInfo, setFileInfo] = useState(null);
-  const [analysisData, setAnalysisData] = useState(null);
-  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const [appState, setAppState] = useState({
+    isLoading: false,
+    fileInfo: null,
+    analysisData: null,
+    error: null,
+    isAuthenticated: false,
+  });
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      validateToken(token);
+    }
+  }, []);
+
+  const validateToken = async (token) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/validate-token', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+      } else {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error('Token validation error:', err);
+      handleLogout();
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setAppState({
+      isLoading: false,
+      fileInfo: null,
+      analysisData: null,
+      error: null,
+      isAuthenticated: false,
+    });
+    navigate('/login');
+  };
+
+  const refreshAuthToken = async () => {
+    // Реализация обновления токена
+    return false;
+  };
 
   const handleFileUpload = async (file) => {
-    // Validate file type
-    if (!file.name.endsWith('.pdf')) {
-      setError('Пожалуйста, загрузите файл в формате PDF');
-      return;
-    }
+    if (!file) return;
 
-    setFileInfo({
-      name: file.name,
-      size: file.size,
-    });
-    setError(null);
-    setIsLoading(true);
+    setAppState((prev) => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+      fileInfo: {
+        name: file.name,
+        size: file.size,
+      },
+    }));
 
     try {
+      let token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Требуется авторизация');
+      }
+
       const formData = new FormData();
       formData.append('document', file);
 
-      const response = await fetch('http://localhost:8080/api/analyze', {
+      let response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
+      if (response.status === 401) {
+        const refreshed = await refreshAuthToken();
+        if (refreshed) {
+          token = localStorage.getItem('token');
+          response = await fetch('http://localhost:8080/api/analyze', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } else {
+          throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
+        }
+      }
+
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || `Server returned ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Ошибка при анализе документа');
       }
 
       const data = await response.json();
-      setAnalysisData(data);
-      setActiveTab('result');
+      setAppState((prev) => ({
+        ...prev,
+        isLoading: false,
+        analysisData: data,
+      }));
     } catch (err) {
       console.error('Upload error:', err);
-      setError(
-        'Произошла ошибка при анализе документа. Пожалуйста, попробуйте позже.'
-      );
-    } finally {
-      setIsLoading(false);
+      setAppState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: err.message,
+      }));
+
+      if (
+        err.message.includes('Сессия истекла') ||
+        err.message.includes('Требуется авторизация')
+      ) {
+        handleLogout();
+      }
     }
   };
 
   return (
     <div className="App">
-      <Header />
+      <Header
+        isAuthenticated={appState.isAuthenticated}
+        onLogout={handleLogout}
+      />
 
       <main className="container">
-        {activeTab === 'upload' && (
-          <UploadSection
-            onFileUpload={handleFileUpload}
-            fileInfo={fileInfo}
-            error={error}
-            onHistoryClick={() => setActiveTab('history')}
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              <AuthPage
+                type="login"
+                onSuccess={() => {
+                  setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+                  navigate('/');
+                }}
+              />
+            }
           />
-        )}
 
-        {isLoading && <LoadingSection />}
-
-        {analysisData && activeTab === 'result' && (
-          <ResultSection
-            data={analysisData}
-            onBackClick={() => setActiveTab('upload')}
+          <Route
+            path="/register"
+            element={
+              <AuthPage type="register" onSuccess={() => navigate('/login')} />
+            }
           />
-        )}
 
-        {activeTab === 'history' && (
-          <HistorySection onBackClick={() => setActiveTab('upload')} />
-        )}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
+                {appState.isLoading ? (
+                  <LoadingSection />
+                ) : appState.analysisData ? (
+                  <ResultSection
+                    data={appState.analysisData}
+                    onBackClick={() =>
+                      setAppState((prev) => ({ ...prev, analysisData: null }))
+                    }
+                  />
+                ) : (
+                  <UploadSection
+                    onFileUpload={handleFileUpload}
+                    fileInfo={appState.fileInfo}
+                    error={appState.error}
+                    onClearError={() =>
+                      setAppState((prev) => ({ ...prev, error: null }))
+                    }
+                  />
+                )}
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
+                <HistorySection />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
       </main>
 
       <Footer />
@@ -88,4 +214,12 @@ function App() {
   );
 }
 
-export default App;
+function AppWrapper() {
+  return (
+    <Router>
+      <App />
+    </Router>
+  );
+}
+
+export default AppWrapper;

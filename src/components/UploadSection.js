@@ -7,15 +7,38 @@ import {
   Fade,
   Stack,
   Box,
-  Chip,
   CircularProgress,
   Paper,
+  IconButton,
+  useTheme,
 } from '@mui/material';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import HistoryIcon from '@mui/icons-material/History';
-import DescriptionIcon from '@mui/icons-material/Description';
-import CloseIcon from '@mui/icons-material/Close';
-import { formatFileSize } from '../utils/helpers';
+import {
+  UploadFile as UploadFileIcon,
+  History as HistoryIcon,
+  Description as DescriptionIcon,
+  Close as CloseIcon,
+  CloudUpload as CloudUploadIcon,
+} from '@mui/icons-material';
+import { styled } from '@mui/material/styles';
+
+const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
+  padding: theme.spacing(dragactive ? 4 : 3),
+  border: `2px dashed ${
+    dragactive ? theme.palette.primary.main : theme.palette.divider
+  }`,
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: dragactive
+    ? theme.palette.action.hover
+    : theme.palette.background.paper,
+  transition: 'all 0.3s ease',
+  textAlign: 'center',
+  cursor: 'pointer',
+  position: 'relative',
+  '&:hover': {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: theme.palette.action.hover,
+  },
+}));
 
 function UploadSection({
   onFileUpload,
@@ -23,12 +46,14 @@ function UploadSection({
   error,
   onHistoryClick,
   isLoading = false,
+  onClearError,
 }) {
+  const theme = useTheme();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
 
   const handleFileChange = (e) => {
-    if (e.target.files.length > 0) {
+    if (e.target.files?.length > 0) {
       onFileUpload(e.target.files[0]);
     }
     setDragActive(false);
@@ -37,25 +62,23 @@ function UploadSection({
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files?.length > 0) {
       onFileUpload(e.dataTransfer.files[0]);
     }
   };
 
-  const handleRemoveFile = () => {
+  const handleRemoveFile = (e) => {
+    e.stopPropagation();
     fileInputRef.current.value = '';
     onFileUpload(null);
+    onClearError();
   };
 
   return (
@@ -65,36 +88,34 @@ function UploadSection({
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
             Анализ юридических документов
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-            Проверьте документ на соответствие законодательству Казахстана
-          </Typography>
 
-          <Box
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ mt: 2, mb: 3 }}
+              action={
+                <IconButton size="small" color="inherit" onClick={onClearError}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              }
+            >
+              {error}
+            </Alert>
+          )}
+
+          <FileUploadArea
+            dragactive={dragActive}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            sx={{
-              mt: 4,
-              p: dragActive ? 4 : 3,
-              border: dragActive
-                ? '2px dashed'
-                : '2px dashed rgba(0, 0, 0, 0.12)',
-              borderColor: dragActive ? 'primary.main' : 'divider',
-              borderRadius: 2,
-              backgroundColor: dragActive ? 'action.hover' : 'background.paper',
-              transition: 'all 0.3s ease',
-              textAlign: 'center',
-              cursor: 'pointer',
-              position: 'relative',
-            }}
             onClick={() => !fileInfo && fileInputRef.current.click()}
           >
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               hidden
             />
 
@@ -106,8 +127,12 @@ function UploadSection({
                   alignItems: 'center',
                 }}
               >
-                <CircularProgress size={60} thickness={4} sx={{ mb: 2 }} />
-                <Typography>Обработка документа...</Typography>
+                <CircularProgress
+                  size={60}
+                  thickness={4}
+                  sx={{ mb: 2, color: theme.palette.primary.main }}
+                />
+                <Typography variant="h6">Идет анализ документа...</Typography>
               </Box>
             ) : fileInfo ? (
               <Box>
@@ -117,47 +142,30 @@ function UploadSection({
                 <Typography variant="h6" gutterBottom>
                   {fileInfo.name}
                 </Typography>
-                <Chip
-                  label={formatFileSize(fileInfo.size)}
-                  variant="outlined"
-                  sx={{ mr: 1 }}
-                />
-                <Chip
-                  label={fileInfo.type || 'PDF документ'}
-                  variant="outlined"
-                  color="primary"
-                />
                 <Box sx={{ mt: 2 }}>
                   <Button
                     variant="outlined"
                     color="error"
                     startIcon={<CloseIcon />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFile();
-                    }}
+                    onClick={handleRemoveFile}
                   >
-                    Удалить
+                    Удалить файл
                   </Button>
                 </Box>
               </Box>
             ) : (
               <>
-                <UploadFileIcon
+                <CloudUploadIcon
                   sx={{ fontSize: 60, color: 'primary.main', mb: 2 }}
                 />
                 <Typography variant="h6" gutterBottom>
-                  Перетащите файл сюда или нажмите для выбора
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Поддерживаемые форматы: PDF, DOC, DOCX
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Максимальный размер: 10MB
+                  {dragActive
+                    ? 'Отпустите файл для загрузки'
+                    : 'Перетащите файл сюда или нажмите для выбора'}
                 </Typography>
               </>
             )}
-          </Box>
+          </FileUploadArea>
 
           <Stack
             direction="row"
@@ -170,7 +178,7 @@ function UploadSection({
               size="large"
               startIcon={<UploadFileIcon />}
               onClick={() => fileInputRef.current.click()}
-              disabled={isLoading}
+              disabled={isLoading || !!fileInfo}
             >
               Выбрать файл
             </Button>
@@ -184,37 +192,6 @@ function UploadSection({
               История проверок
             </Button>
           </Stack>
-
-          {error && (
-            <Alert
-              severity="error"
-              sx={{ mt: 3 }}
-              action={
-                <Button
-                  color="inherit"
-                  size="small"
-                  onClick={() => onFileUpload(null)}
-                >
-                  ОК
-                </Button>
-              }
-            >
-              {error}
-            </Alert>
-          )}
-
-          {!error && !fileInfo && (
-            <Alert severity="info" sx={{ mt: 3 }}>
-              <Typography variant="body2">
-                Сервис проверит ваш документ на:
-              </Typography>
-              <Box component="ul" sx={{ pl: 2, mb: 0 }}>
-                <li>Соответствие законодательству РК</li>
-                <li>Потенциальные правовые риски</li>
-                <li>Неясные формулировки</li>
-              </Box>
-            </Alert>
-          )}
         </Paper>
       </Container>
     </Fade>
