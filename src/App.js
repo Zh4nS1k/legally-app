@@ -27,17 +27,13 @@ function App() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      validateToken(token);
-    }
+    if (token) validateToken(token);
   }, []);
 
   const validateToken = async (token) => {
     try {
       const response = await fetch('http://localhost:8080/api/validate-token', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
@@ -45,8 +41,7 @@ function App() {
       } else {
         handleLogout();
       }
-    } catch (err) {
-      console.error('Token validation error:', err);
+    } catch {
       handleLogout();
     }
   };
@@ -61,11 +56,6 @@ function App() {
       isAuthenticated: false,
     });
     navigate('/login');
-  };
-
-  const refreshAuthToken = async () => {
-    // Реализация обновления токена
-    return false;
   };
 
   const handleFileUpload = async (file) => {
@@ -90,33 +80,22 @@ function App() {
       const formData = new FormData();
       formData.append('document', file);
 
-      let response = await fetch('http://localhost:8080/api/analyze', {
+      // Debug logging
+      console.log('Uploading file:', file.name, 'Size:', file.size);
+      console.log('Token exists:', !!token);
+
+      const response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
         headers: {
           Authorization: `Bearer ${token}`,
+          // Note: Don't set Content-Type header - the browser will set it with the correct boundary
         },
       });
 
-      if (response.status === 401) {
-        const refreshed = await refreshAuthToken();
-        if (refreshed) {
-          token = localStorage.getItem('token');
-          response = await fetch('http://localhost:8080/api/analyze', {
-            method: 'POST',
-            body: formData,
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-        } else {
-          throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
-        }
-      }
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Ошибка при анализе документа');
+        throw new Error(errorData.error || 'Ошибка при анализе документа');
       }
 
       const data = await response.json();
@@ -148,29 +127,26 @@ function App() {
         isAuthenticated={appState.isAuthenticated}
         onLogout={handleLogout}
       />
-
       <main className="container">
         <Routes>
           <Route
             path="/login"
             element={
               <AuthPage
-                type="login"
                 onSuccess={() => {
                   setAppState((prev) => ({ ...prev, isAuthenticated: true }));
                   navigate('/');
                 }}
+                type="login"
               />
             }
           />
-
           <Route
             path="/register"
             element={
-              <AuthPage type="register" onSuccess={() => navigate('/login')} />
+              <AuthPage onSuccess={() => navigate('/login')} type="register" />
             }
           />
-
           <Route
             path="/"
             element={
@@ -197,7 +173,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/history"
             element={
@@ -208,7 +183,6 @@ function App() {
           />
         </Routes>
       </main>
-
       <Footer />
     </div>
   );

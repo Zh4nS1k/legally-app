@@ -11,6 +11,7 @@ import {
   Paper,
   IconButton,
   useTheme,
+  Tooltip,
 } from '@mui/material';
 import {
   UploadFile as UploadFileIcon,
@@ -18,8 +19,10 @@ import {
   Description as DescriptionIcon,
   Close as CloseIcon,
   CloudUpload as CloudUploadIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import { formatFileSize } from '../utils/helpers';
 
 const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
   padding: theme.spacing(dragactive ? 4 : 3),
@@ -40,6 +43,14 @@ const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
   },
 }));
 
+const FileInfoBox = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: theme.spacing(1),
+  marginTop: theme.spacing(2),
+}));
+
 function UploadSection({
   onFileUpload,
   fileInfo,
@@ -51,11 +62,41 @@ function UploadSection({
   const theme = useTheme();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
+  const [fileError, setFileError] = useState(null);
+
+  const validateFile = (file) => {
+    if (!file) {
+      return 'Файл не выбран';
+    }
+
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return `Файл слишком большой (${formatFileSize(
+        file.size
+      )}). Максимум 10MB`;
+    }
+
+    // Check file type
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      return 'Поддерживаются только PDF файлы';
+    }
+
+    return null;
+  };
 
   const handleFileChange = (e) => {
-    if (e.target.files?.length > 0) {
-      onFileUpload(e.target.files[0]);
+    const file = e.target.files?.[0];
+    const validationError = validateFile(file);
+
+    if (validationError) {
+      setFileError(validationError);
+      onFileUpload(null);
+      fileInputRef.current.value = '';
+      return;
     }
+
+    setFileError(null);
+    onFileUpload(file);
     setDragActive(false);
   };
 
@@ -69,9 +110,18 @@ function UploadSection({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files?.length > 0) {
-      onFileUpload(e.dataTransfer.files[0]);
+
+    const file = e.dataTransfer.files?.[0];
+    const validationError = validateFile(file);
+
+    if (validationError) {
+      setFileError(validationError);
+      onFileUpload(null);
+      return;
     }
+
+    setFileError(null);
+    onFileUpload(file);
   };
 
   const handleRemoveFile = (e) => {
@@ -79,6 +129,13 @@ function UploadSection({
     fileInputRef.current.value = '';
     onFileUpload(null);
     onClearError();
+    setFileError(null);
+  };
+
+  const handleSelectFileClick = () => {
+    if (!fileInfo && !isLoading) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -89,27 +146,34 @@ function UploadSection({
             Анализ юридических документов
           </Typography>
 
-          {error && (
+          {(error || fileError) && (
             <Alert
               severity="error"
               sx={{ mt: 2, mb: 3 }}
               action={
-                <IconButton size="small" color="inherit" onClick={onClearError}>
+                <IconButton
+                  size="small"
+                  color="inherit"
+                  onClick={() => {
+                    onClearError();
+                    setFileError(null);
+                  }}
+                >
                   <CloseIcon fontSize="small" />
                 </IconButton>
               }
             >
-              {error}
+              {error || fileError}
             </Alert>
           )}
 
           <FileUploadArea
-            dragactive={dragActive}
+            dragactive={dragActive ? 1 : 0}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            onClick={() => !fileInfo && fileInputRef.current.click()}
+            onClick={handleSelectFileClick}
           >
             <input
               type="file"
@@ -135,24 +199,29 @@ function UploadSection({
                 <Typography variant="h6">Идет анализ документа...</Typography>
               </Box>
             ) : fileInfo ? (
-              <Box>
+              <>
                 <DescriptionIcon
                   sx={{ fontSize: 60, color: 'primary.main', mb: 1 }}
                 />
-                <Typography variant="h6" gutterBottom>
-                  {fileInfo.name}
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<CloseIcon />}
-                    onClick={handleRemoveFile}
-                  >
-                    Удалить файл
-                  </Button>
-                </Box>
-              </Box>
+                <FileInfoBox>
+                  <Typography variant="h6" gutterBottom>
+                    {fileInfo.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatFileSize(fileInfo.size)}
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<CloseIcon />}
+                      onClick={handleRemoveFile}
+                    >
+                      Удалить файл
+                    </Button>
+                  </Box>
+                </FileInfoBox>
+              </>
             ) : (
               <>
                 <CloudUploadIcon
@@ -162,6 +231,9 @@ function UploadSection({
                   {dragActive
                     ? 'Отпустите файл для загрузки'
                     : 'Перетащите файл сюда или нажмите для выбора'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Поддерживаются только PDF файлы (максимум 10MB)
                 </Typography>
               </>
             )}
@@ -173,15 +245,18 @@ function UploadSection({
             justifyContent="center"
             sx={{ mt: 4 }}
           >
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<UploadFileIcon />}
-              onClick={() => fileInputRef.current.click()}
-              disabled={isLoading || !!fileInfo}
-            >
-              Выбрать файл
-            </Button>
+            <Tooltip title="Выберите PDF файл для анализа">
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<UploadFileIcon />}
+                onClick={() => fileInputRef.current.click()}
+                disabled={isLoading || !!fileInfo}
+              >
+                Выбрать файл
+              </Button>
+            </Tooltip>
+
             <Button
               variant="outlined"
               size="large"
@@ -192,6 +267,16 @@ function UploadSection({
               История проверок
             </Button>
           </Stack>
+
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              <InfoIcon
+                fontSize="small"
+                sx={{ mr: 0.5, verticalAlign: 'middle' }}
+              />
+              Система проверит ваш документ на соответствие законодательству РК
+            </Typography>
+          </Box>
         </Paper>
       </Container>
     </Fade>

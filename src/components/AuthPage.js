@@ -77,7 +77,14 @@ function AuthPage({ type, onSuccess }) {
       }
 
       const data = await response.json();
-      localStorage.setItem('token', data.token);
+
+      // Сохраняем accessToken в localStorage
+      if (data.accessToken) {
+        localStorage.setItem('token', data.accessToken);
+      } else {
+        throw new Error('Токен авторизации отсутствует в ответе');
+      }
+
       onSuccess?.();
     } catch (err) {
       setError(err.message);
