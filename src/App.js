@@ -1,6 +1,4 @@
-// App.js
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -27,28 +25,7 @@ function App() {
     isAuthenticated: false,
   });
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) validateToken(token);
-  }, []);
-
-  const validateToken = async (token) => {
-    try {
-      const response = await fetch('http://localhost:8080/api/validate-token', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        setAppState((prev) => ({ ...prev, isAuthenticated: true }));
-      } else {
-        handleLogout();
-      }
-    } catch {
-      handleLogout();
-    }
-  };
-
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     setAppState({
       isLoading: false,
@@ -58,7 +35,34 @@ function App() {
       isAuthenticated: false,
     });
     navigate('/login');
-  };
+  }, [navigate]);
+
+  const validateToken = useCallback(
+    async (token) => {
+      try {
+        const response = await fetch(
+          'http://localhost:8080/api/validate-token',
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+        } else {
+          handleLogout();
+        }
+      } catch {
+        handleLogout();
+      }
+    },
+    [handleLogout]
+  );
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) validateToken(token);
+  }, [validateToken]);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -82,16 +86,11 @@ function App() {
       const formData = new FormData();
       formData.append('document', file);
 
-      // Debug logging
-      console.log('Uploading file:', file.name, 'Size:', file.size);
-      console.log('Token exists:', !!token);
-
       const response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
         headers: {
           Authorization: `Bearer ${token}`,
-          // Note: Don't set Content-Type header - the browser will set it with the correct boundary
         },
       });
 
@@ -170,6 +169,7 @@ function App() {
                     onClearError={() =>
                       setAppState((prev) => ({ ...prev, error: null }))
                     }
+                    onHistoryClick={() => navigate('/history')}
                   />
                 )}
               </ProtectedRoute>
@@ -179,7 +179,7 @@ function App() {
             path="/history"
             element={
               <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
-                <HistorySection />
+                <HistorySection onBackClick={() => navigate('/')} />
               </ProtectedRoute>
             }
           />

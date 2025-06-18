@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { formatFileSize } from '../utils/helpers';
+import { useNavigate } from 'react-router-dom'; // ✅ Добавлен импорт
 
 const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
   padding: theme.spacing(dragactive ? 4 : 3),
@@ -65,6 +66,7 @@ function UploadSection({
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [fileError, setFileError] = useState(null);
+  const navigate = useNavigate(); // ✅ Добавлен вызов хука
 
   const validateFile = (file) => {
     if (!file) {
@@ -258,12 +260,11 @@ function UploadSection({
                 Выбрать файл
               </Button>
             </Tooltip>
-
             <Button
               variant="outlined"
               size="large"
               startIcon={<HistoryIcon />}
-              onClick={onHistoryClick}
+              onClick={() => navigate('/history')}
               disabled={isLoading}
             >
               История проверок
