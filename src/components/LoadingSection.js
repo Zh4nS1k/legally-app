@@ -1,3 +1,5 @@
+// LoadingSection.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Fade, styled, Button, Alert } from '@mui/material';
 
