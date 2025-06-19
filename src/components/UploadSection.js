@@ -1,5 +1,3 @@
-// UploadSection.js
-
 import React, { useRef, useState } from 'react';
 import {
   Container,
@@ -27,13 +25,13 @@ import { styled } from '@mui/material/styles';
 import { formatFileSize } from '../utils/helpers';
 import { useNavigate } from 'react-router-dom';
 
-const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
-  padding: theme.spacing(dragactive ? 4 : 3),
+const FileUploadArea = styled(Box)(({ theme, $dragactive }) => ({
+  padding: theme.spacing($dragactive ? 4 : 3),
   border: `2px dashed ${
-    dragactive ? theme.palette.primary.main : theme.palette.divider
+    $dragactive ? theme.palette.primary.main : theme.palette.divider
   }`,
   borderRadius: theme.shape.borderRadius,
-  backgroundColor: dragactive
+  backgroundColor: $dragactive
     ? theme.palette.action.hover
     : theme.palette.background.paper,
   transition: 'all 0.3s ease',
@@ -62,6 +60,7 @@ function UploadSection({
   isLoading = false,
   onClearError,
   onCancelUpload,
+  onRemoveFile,
 }) {
   const theme = useTheme();
   const fileInputRef = useRef(null);
@@ -96,12 +95,31 @@ function UploadSection({
     setDragActive(false);
   };
 
-  const handleRemoveFile = (e) => {
+  const handleDrag = (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    fileInputRef.current.value = '';
-    onFileUpload(null);
-    onClearError();
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    const validationError = validateFile(file);
+    if (validationError) {
+      setFileError(validationError);
+      onFileUpload(null);
+      return;
+    }
     setFileError(null);
+    onFileUpload(file);
+  };
+
+  const handleSelectFileClick = () => {
+    if (!fileInfo && !isLoading) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -134,39 +152,12 @@ function UploadSection({
           )}
 
           <FileUploadArea
-            dragactive={dragActive ? 1 : 0}
-            onDragEnter={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragActive(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragActive(false);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragActive(true);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragActive(false);
-              const file = e.dataTransfer.files?.[0];
-              const validationError = validateFile(file);
-              if (validationError) {
-                setFileError(validationError);
-                onFileUpload(null);
-                return;
-              }
-              setFileError(null);
-              onFileUpload(file);
-            }}
-            onClick={() =>
-              !fileInfo && !isLoading && fileInputRef.current.click()
-            }
+            $dragactive={dragActive}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={handleSelectFileClick}
           >
             <input
               type="file"
@@ -218,7 +209,10 @@ function UploadSection({
                     variant="outlined"
                     color="error"
                     startIcon={<CloseIcon />}
-                    onClick={handleRemoveFile}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveFile();
+                    }}
                     sx={{ mt: 2 }}
                   >
                     Удалить файл

@@ -1,5 +1,3 @@
-// App.js
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BrowserRouter as Router,
@@ -29,39 +27,20 @@ function App() {
     userData: null,
   });
 
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('token');
-    setAppState({
-      isLoading: false,
-      fileInfo: null,
-      analysisData: null,
-      error: null,
-      isAuthenticated: false,
-      userData: null,
-    });
-    navigate('/login');
-  }, [navigate]);
-
-  const validateToken = useCallback(
-    async (token) => {
-      try {
-        const response = await fetch(
-          'http://localhost:8080/api/validate-token',
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        if (response.ok) {
-          setAppState((prev) => ({ ...prev, isAuthenticated: true }));
-        } else {
-          handleLogout();
-        }
-      } catch {
+  const validateToken = useCallback(async (token) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/validate-token', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setAppState(prev => ({ ...prev, isAuthenticated: true }));
+      } else {
         handleLogout();
       }
-    },
-    [handleLogout]
-  );
+    } catch {
+      handleLogout();
+    }
+  }, []);
 
   const fetchUserData = useCallback(async (token) => {
     try {
@@ -70,7 +49,7 @@ function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        setAppState((prev) => ({ ...prev, userData: data }));
+        setAppState(prev => ({ ...prev, userData: data }));
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
@@ -85,9 +64,23 @@ function App() {
     }
   }, [validateToken, fetchUserData]);
 
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    setAppState({
+      isLoading: false,
+      fileInfo: null,
+      analysisData: null,
+      error: null,
+      isAuthenticated: false,
+      userData: null,
+    });
+    navigate('/login');
+  }, [navigate]);
+
   const handleFileUpload = async (file) => {
     if (!file) return;
-    setAppState((prev) => ({
+    
+    setAppState(prev => ({
       ...prev,
       isLoading: true,
       error: null,
@@ -98,13 +91,14 @@ function App() {
     }));
 
     try {
-      let token = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Требуется авторизация');
       }
 
       const formData = new FormData();
       formData.append('document', file);
+      
       const response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
@@ -119,34 +113,79 @@ function App() {
       }
 
       const data = await response.json();
-      setAppState((prev) => ({
+      setAppState(prev => ({
         ...prev,
         isLoading: false,
         analysisData: data,
       }));
     } catch (err) {
-      console.error('Upload error:', err);
-      setAppState((prev) => ({
+      setAppState(prev => ({
         ...prev,
         isLoading: false,
         error: err.message,
       }));
-      if (
-        err.message.includes('Сессия истекла') ||
-        err.message.includes('Требуется авторизация')
-      ) {
+      if (err.message.includes('Сессия истекла') || err.message.includes('Требуется авторизация')) {
         handleLogout();
       }
     }
   };
 
-  const handleCancelUpload = () => {
-    setAppState((prev) => ({
-      ...prev,
-      isLoading: false,
-      fileInfo: null,
-      error: null,
-    }));
+  const handleCancelUpload = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8080/api/analysis/cancel', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Не удалось отменить анализ');
+      }
+
+      setAppState(prev => ({
+        ...prev,
+        isLoading: false,
+        fileInfo: null,
+        error: null,
+      }));
+    } catch (err) {
+      setAppState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: err.message,
+      }));
+    }
+  };
+
+  const handleRemoveFile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8080/api/cache/clear', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Не удалось удалить файл');
+      }
+
+      setAppState(prev => ({
+        ...prev,
+        fileInfo: null,
+        error: null,
+      }));
+    } catch (err) {
+      setAppState(prev => ({
+        ...prev,
+        error: err.message,
+      }));
+    }
   };
 
   return (
@@ -164,7 +203,7 @@ function App() {
               <AuthPage
                 onSuccess={() => {
                   const token = localStorage.getItem('token');
-                  setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+                  setAppState(prev => ({ ...prev, isAuthenticated: true }));
                   fetchUserData(token);
                   navigate('/');
                 }}
@@ -182,9 +221,10 @@ function App() {
             path="/profile"
             element={
               <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
-                <ProfileSection
+                <ProfileSection 
                   userData={appState.userData}
                   onLogout={handleLogout}
+                  onBack={() => navigate('/')}
                 />
               </ProtectedRoute>
             }
@@ -199,7 +239,7 @@ function App() {
                   <ResultSection
                     data={appState.analysisData}
                     onBackClick={() =>
-                      setAppState((prev) => ({ ...prev, analysisData: null }))
+                      setAppState(prev => ({ ...prev, analysisData: null }))
                     }
                   />
                 ) : (
@@ -208,10 +248,11 @@ function App() {
                     fileInfo={appState.fileInfo}
                     error={appState.error}
                     onClearError={() =>
-                      setAppState((prev) => ({ ...prev, error: null }))
+                      setAppState(prev => ({ ...prev, error: null }))
                     }
                     onHistoryClick={() => navigate('/history')}
                     onCancelUpload={handleCancelUpload}
+                    onRemoveFile={handleRemoveFile}
                   />
                 )}
               </ProtectedRoute>
