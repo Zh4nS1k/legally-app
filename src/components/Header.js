@@ -1,5 +1,4 @@
 // Header.js
-
 import React from 'react';
 import {
   Box,
@@ -8,8 +7,11 @@ import {
   Slide,
   useTheme,
   useMediaQuery,
+  Button,
+  Avatar,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 
 const HeaderBox = styled(Box)(({ theme }) => ({
   background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
@@ -53,9 +55,10 @@ const AnimatedGradient = styled(Box)({
   },
 });
 
-function Header() {
+function Header({ isAuthenticated, onLogout, userData }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
 
   return (
     <Slide
@@ -67,45 +70,91 @@ function Header() {
       <HeaderBox component="header">
         <AnimatedGradient />
         <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-          <Typography
-            variant={isMobile ? 'h4' : 'h2'}
-            component="h1"
-            gutterBottom
+          <Box
             sx={{
-              fontWeight: 700,
-              letterSpacing: '0.03em',
-              textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-              '&:after': {
-                content: '""',
-                display: 'block',
-                width: '80px',
-                height: '4px',
-                background: theme.palette.secondary.light,
-                marginTop: theme.spacing(3),
-                [theme.breakpoints.down('sm')]: {
-                  marginTop: theme.spacing(2),
-                  width: '60px',
-                  height: '3px',
-                },
-              },
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
             }}
           >
-            Legally
-          </Typography>
-          <Typography
-            variant={isMobile ? 'subtitle2' : 'subtitle1'}
-            sx={{
-              maxWidth: '680px',
-              lineHeight: 1.6,
-              opacity: 0.9,
-              letterSpacing: '0.02em',
-              textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            Профессиональная проверка юридических документов на соответствие
-            законодательству Республики Казахстан с использованием
-            искусственного интеллекта
-          </Typography>
+            <Box>
+              <Typography
+                variant={isMobile ? 'h4' : 'h2'}
+                component="h1"
+                gutterBottom
+                sx={{
+                  fontWeight: 700,
+                  letterSpacing: '0.03em',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                  '&:after': {
+                    content: '""',
+                    display: 'block',
+                    width: '80px',
+                    height: '4px',
+                    background: theme.palette.secondary.light,
+                    marginTop: theme.spacing(3),
+                    [theme.breakpoints.down('sm')]: {
+                      marginTop: theme.spacing(2),
+                      width: '60px',
+                      height: '3px',
+                    },
+                  },
+                }}
+              >
+                Legally
+              </Typography>
+              <Typography
+                variant={isMobile ? 'subtitle2' : 'subtitle1'}
+                sx={{
+                  maxWidth: '680px',
+                  lineHeight: 1.6,
+                  opacity: 0.9,
+                  letterSpacing: '0.02em',
+                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                }}
+              >
+                Профессиональная проверка юридических документов на соответствие
+                законодательству Республики Казахстан с использованием
+                искусственного интеллекта
+              </Typography>
+            </Box>
+
+            {isAuthenticated && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Button
+                  startIcon={
+                    <Avatar
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        bgcolor: theme.palette.secondary.main,
+                      }}
+                    >
+                      {userData?.email?.charAt(0).toUpperCase() || 'U'}
+                    </Avatar>
+                  }
+                  onClick={() => navigate('/profile')}
+                  sx={{
+                    color: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  }}
+                >
+                  {isMobile ? '' : userData?.email || 'Профиль'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={onLogout}
+                  size={isMobile ? 'small' : 'medium'}
+                >
+                  {isMobile ? 'Выйти' : 'Выход'}
+                </Button>
+              </Box>
+            )}
+          </Box>
         </Container>
       </HeaderBox>
     </Slide>

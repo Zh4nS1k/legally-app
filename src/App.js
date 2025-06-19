@@ -1,3 +1,5 @@
+// App.js
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BrowserRouter as Router,
@@ -13,6 +15,7 @@ import HistorySection from './components/HistorySection';
 import Footer from './components/Footer';
 import AuthPage from './components/AuthPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import ProfileSection from './components/ProfileSection';
 import './styles/index.css';
 
 function App() {
@@ -23,6 +26,7 @@ function App() {
     analysisData: null,
     error: null,
     isAuthenticated: false,
+    userData: null,
   });
 
   const handleLogout = useCallback(() => {
@@ -33,6 +37,7 @@ function App() {
       analysisData: null,
       error: null,
       isAuthenticated: false,
+      userData: null,
     });
     navigate('/login');
   }, [navigate]);
@@ -46,7 +51,6 @@ function App() {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-
         if (response.ok) {
           setAppState((prev) => ({ ...prev, isAuthenticated: true }));
         } else {
@@ -59,14 +63,30 @@ function App() {
     [handleLogout]
   );
 
+  const fetchUserData = useCallback(async (token) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/user', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAppState((prev) => ({ ...prev, userData: data }));
+      }
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) validateToken(token);
-  }, [validateToken]);
+    if (token) {
+      validateToken(token);
+      fetchUserData(token);
+    }
+  }, [validateToken, fetchUserData]);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
-
     setAppState((prev) => ({
       ...prev,
       isLoading: true,
@@ -85,7 +105,6 @@ function App() {
 
       const formData = new FormData();
       formData.append('document', file);
-
       const response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
@@ -112,7 +131,6 @@ function App() {
         isLoading: false,
         error: err.message,
       }));
-
       if (
         err.message.includes('Сессия истекла') ||
         err.message.includes('Требуется авторизация')
@@ -122,11 +140,21 @@ function App() {
     }
   };
 
+  const handleCancelUpload = () => {
+    setAppState((prev) => ({
+      ...prev,
+      isLoading: false,
+      fileInfo: null,
+      error: null,
+    }));
+  };
+
   return (
     <div className="App">
       <Header
         isAuthenticated={appState.isAuthenticated}
         onLogout={handleLogout}
+        userData={appState.userData}
       />
       <main className="container">
         <Routes>
@@ -135,7 +163,9 @@ function App() {
             element={
               <AuthPage
                 onSuccess={() => {
+                  const token = localStorage.getItem('token');
                   setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+                  fetchUserData(token);
                   navigate('/');
                 }}
                 type="login"
@@ -149,11 +179,22 @@ function App() {
             }
           />
           <Route
+            path="/profile"
+            element={
+              <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
+                <ProfileSection
+                  userData={appState.userData}
+                  onLogout={handleLogout}
+                />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/"
             element={
               <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
                 {appState.isLoading ? (
-                  <LoadingSection />
+                  <LoadingSection onCancel={handleCancelUpload} />
                 ) : appState.analysisData ? (
                   <ResultSection
                     data={appState.analysisData}
@@ -170,6 +211,7 @@ function App() {
                       setAppState((prev) => ({ ...prev, error: null }))
                     }
                     onHistoryClick={() => navigate('/history')}
+                    onCancelUpload={handleCancelUpload}
                   />
                 )}
               </ProtectedRoute>

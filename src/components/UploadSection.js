@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { formatFileSize } from '../utils/helpers';
-import { useNavigate } from 'react-router-dom'; // ✅ Добавлен импорт
+import { useNavigate } from 'react-router-dom';
 
 const FileUploadArea = styled(Box)(({ theme, dragactive }) => ({
   padding: theme.spacing(dragactive ? 4 : 3),
@@ -61,71 +61,39 @@ function UploadSection({
   onHistoryClick,
   isLoading = false,
   onClearError,
+  onCancelUpload,
 }) {
   const theme = useTheme();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [fileError, setFileError] = useState(null);
-  const navigate = useNavigate(); // ✅ Добавлен вызов хука
+  const navigate = useNavigate();
 
   const validateFile = (file) => {
-    if (!file) {
-      return 'Файл не выбран';
-    }
-
-    // Check file size (max 10MB)
+    if (!file) return 'Файл не выбран';
     if (file.size > 10 * 1024 * 1024) {
       return `Файл слишком большой (${formatFileSize(
         file.size
       )}). Максимум 10MB`;
     }
-
-    // Check file type
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       return 'Поддерживаются только PDF файлы';
     }
-
     return null;
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     const validationError = validateFile(file);
-
     if (validationError) {
       setFileError(validationError);
       onFileUpload(null);
       fileInputRef.current.value = '';
       return;
     }
-
     setFileError(null);
     onFileUpload(file);
     setDragActive(false);
-  };
-
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    const file = e.dataTransfer.files?.[0];
-    const validationError = validateFile(file);
-
-    if (validationError) {
-      setFileError(validationError);
-      onFileUpload(null);
-      return;
-    }
-
-    setFileError(null);
-    onFileUpload(file);
   };
 
   const handleRemoveFile = (e) => {
@@ -134,12 +102,6 @@ function UploadSection({
     onFileUpload(null);
     onClearError();
     setFileError(null);
-  };
-
-  const handleSelectFileClick = () => {
-    if (!fileInfo && !isLoading) {
-      fileInputRef.current.click();
-    }
   };
 
   return (
@@ -173,11 +135,38 @@ function UploadSection({
 
           <FileUploadArea
             dragactive={dragActive ? 1 : 0}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={handleSelectFileClick}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragActive(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragActive(false);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragActive(true);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragActive(false);
+              const file = e.dataTransfer.files?.[0];
+              const validationError = validateFile(file);
+              if (validationError) {
+                setFileError(validationError);
+                onFileUpload(null);
+                return;
+              }
+              setFileError(null);
+              onFileUpload(file);
+            }}
+            onClick={() =>
+              !fileInfo && !isLoading && fileInputRef.current.click()
+            }
           >
             <input
               type="file"
@@ -201,6 +190,17 @@ function UploadSection({
                   sx={{ mb: 2, color: theme.palette.primary.main }}
                 />
                 <Typography variant="h6">Идет анализ документа...</Typography>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelUpload();
+                  }}
+                  sx={{ mt: 2 }}
+                >
+                  Отменить анализ
+                </Button>
               </Box>
             ) : fileInfo ? (
               <>
@@ -214,16 +214,15 @@ function UploadSection({
                   <Typography variant="body2" color="text.secondary">
                     {formatFileSize(fileInfo.size)}
                   </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      startIcon={<CloseIcon />}
-                      onClick={handleRemoveFile}
-                    >
-                      Удалить файл
-                    </Button>
-                  </Box>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<CloseIcon />}
+                    onClick={handleRemoveFile}
+                    sx={{ mt: 2 }}
+                  >
+                    Удалить файл
+                  </Button>
                 </FileInfoBox>
               </>
             ) : (
@@ -251,15 +250,19 @@ function UploadSection({
           >
             <Tooltip title="Выберите PDF файл для анализа">
               <Button
-                variant="contained"
+                variant={fileInfo ? 'outlined' : 'contained'}
                 size="large"
                 startIcon={<UploadFileIcon />}
                 onClick={() => fileInputRef.current.click()}
-                disabled={isLoading || !!fileInfo}
+                disabled={isLoading}
+                sx={{
+                  backgroundColor: fileInfo ? 'transparent' : undefined,
+                }}
               >
-                Выбрать файл
+                {fileInfo ? 'Заменить файл' : 'Выбрать файл'}
               </Button>
             </Tooltip>
+
             <Button
               variant="outlined"
               size="large"
