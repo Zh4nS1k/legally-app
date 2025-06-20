@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,6 +18,8 @@ import './styles/index.css';
 
 function App() {
   const navigate = useNavigate();
+  const abortControllerRef = useRef(null);
+
   const [appState, setAppState] = useState({
     isLoading: false,
     fileInfo: null,
@@ -26,43 +28,6 @@ function App() {
     isAuthenticated: false,
     userData: null,
   });
-
-  const validateToken = useCallback(async (token) => {
-    try {
-      const response = await fetch('http://localhost:8080/api/validate-token', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        setAppState(prev => ({ ...prev, isAuthenticated: true }));
-      } else {
-        handleLogout();
-      }
-    } catch {
-      handleLogout();
-    }
-  }, []);
-
-  const fetchUserData = useCallback(async (token) => {
-    try {
-      const response = await fetch('http://localhost:8080/api/user', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAppState(prev => ({ ...prev, userData: data }));
-      }
-    } catch (err) {
-      console.error('Error fetching user data:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      validateToken(token);
-      fetchUserData(token);
-    }
-  }, [validateToken, fetchUserData]);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
@@ -77,34 +42,76 @@ function App() {
     navigate('/login');
   }, [navigate]);
 
+  const validateToken = useCallback(
+    async (token) => {
+      try {
+        const response = await fetch(
+          'http://localhost:8080/api/validate-token',
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (response.ok) {
+          setAppState((prev) => ({ ...prev, isAuthenticated: true }));
+        } else {
+          handleLogout();
+        }
+      } catch {
+        handleLogout();
+      }
+    },
+    [handleLogout]
+  );
+
+  const fetchUserData = useCallback(async (token) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/user', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAppState((prev) => ({ ...prev, userData: data }));
+      }
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      validateToken(token);
+      fetchUserData(token);
+    }
+  }, [validateToken, fetchUserData]);
+
   const handleFileUpload = async (file) => {
     if (!file) return;
-    
-    setAppState(prev => ({
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setAppState((prev) => ({
       ...prev,
       isLoading: true,
       error: null,
-      fileInfo: {
-        name: file.name,
-        size: file.size,
-      },
+      fileInfo: { name: file.name, size: file.size },
     }));
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Требуется авторизация');
-      }
+      if (!token) throw new Error('Требуется авторизация');
 
       const formData = new FormData();
       formData.append('document', file);
-      
+
       const response = await fetch('http://localhost:8080/api/analyze', {
         method: 'POST',
         body: formData,
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -113,50 +120,40 @@ function App() {
       }
 
       const data = await response.json();
-      setAppState(prev => ({
+      setAppState((prev) => ({
         ...prev,
         isLoading: false,
         analysisData: data,
       }));
     } catch (err) {
-      setAppState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: err.message,
-      }));
-      if (err.message.includes('Сессия истекла') || err.message.includes('Требуется авторизация')) {
-        handleLogout();
+      if (err.name === 'AbortError') {
+        console.warn('Анализ отменен пользователем');
+        setAppState((prev) => ({
+          ...prev,
+          isLoading: false,
+          fileInfo: null,
+          analysisData: null,
+          error: 'Анализ отменен пользователем',
+        }));
+      } else {
+        setAppState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: err.message,
+        }));
+        if (
+          err.message.includes('Сессия истекла') ||
+          err.message.includes('Требуется авторизация')
+        ) {
+          handleLogout();
+        }
       }
     }
   };
 
-  const handleCancelUpload = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8080/api/analysis/cancel', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Не удалось отменить анализ');
-      }
-
-      setAppState(prev => ({
-        ...prev,
-        isLoading: false,
-        fileInfo: null,
-        error: null,
-      }));
-    } catch (err) {
-      setAppState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: err.message,
-      }));
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -175,13 +172,13 @@ function App() {
         throw new Error('Не удалось удалить файл');
       }
 
-      setAppState(prev => ({
+      setAppState((prev) => ({
         ...prev,
         fileInfo: null,
         error: null,
       }));
     } catch (err) {
-      setAppState(prev => ({
+      setAppState((prev) => ({
         ...prev,
         error: err.message,
       }));
@@ -203,7 +200,7 @@ function App() {
               <AuthPage
                 onSuccess={() => {
                   const token = localStorage.getItem('token');
-                  setAppState(prev => ({ ...prev, isAuthenticated: true }));
+                  setAppState((prev) => ({ ...prev, isAuthenticated: true }));
                   fetchUserData(token);
                   navigate('/');
                 }}
@@ -221,7 +218,7 @@ function App() {
             path="/profile"
             element={
               <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
-                <ProfileSection 
+                <ProfileSection
                   userData={appState.userData}
                   onLogout={handleLogout}
                   onBack={() => navigate('/')}
@@ -239,7 +236,7 @@ function App() {
                   <ResultSection
                     data={appState.analysisData}
                     onBackClick={() =>
-                      setAppState(prev => ({ ...prev, analysisData: null }))
+                      setAppState((prev) => ({ ...prev, analysisData: null }))
                     }
                   />
                 ) : (
@@ -248,7 +245,7 @@ function App() {
                     fileInfo={appState.fileInfo}
                     error={appState.error}
                     onClearError={() =>
-                      setAppState(prev => ({ ...prev, error: null }))
+                      setAppState((prev) => ({ ...prev, error: null }))
                     }
                     onHistoryClick={() => navigate('/history')}
                     onCancelUpload={handleCancelUpload}
