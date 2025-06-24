@@ -1,4 +1,3 @@
-// Header.js
 import React from 'react';
 import {
   Box,
@@ -7,11 +6,8 @@ import {
   Slide,
   useTheme,
   useMediaQuery,
-  Button,
-  Avatar,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
 
 const HeaderBox = styled(Box)(({ theme }) => ({
   background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
@@ -55,10 +51,9 @@ const AnimatedGradient = styled(Box)({
   },
 });
 
-function Header({ isAuthenticated, onLogout, userData }) {
+function Header() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const navigate = useNavigate();
 
   return (
     <Slide
@@ -118,42 +113,6 @@ function Header({ isAuthenticated, onLogout, userData }) {
                 искусственного интеллекта
               </Typography>
             </Box>
-
-            {isAuthenticated && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button
-                  startIcon={
-                    <Avatar
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        bgcolor: theme.palette.secondary.main,
-                      }}
-                    >
-                      {userData?.email?.charAt(0).toUpperCase() || 'U'}
-                    </Avatar>
-                  }
-                  onClick={() => navigate('/profile')}
-                  sx={{
-                    color: 'white',
-                    textTransform: 'none',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    },
-                  }}
-                >
-                  {isMobile ? '' : userData?.email || 'Профиль'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={onLogout}
-                  size={isMobile ? 'small' : 'medium'}
-                >
-                  {isMobile ? 'Выйти' : 'Выход'}
-                </Button>
-              </Box>
-            )}
           </Box>
         </Container>
       </HeaderBox>
