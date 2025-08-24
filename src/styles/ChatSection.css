@@ -7,7 +7,7 @@
 .chat-container {
   width: 90%;
   max-width: 800px;
-  height: 80vh;
+  height: 65vh;
   background: white;
   border-radius: 20px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
@@ -200,7 +200,7 @@
 @media (max-width: 768px) {
   .chat-container {
     width: 95%;
-    height: 90vh;
+    height: 80vh;
   }
 
   .message-content {
